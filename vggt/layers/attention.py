@@ -11,11 +11,17 @@ import logging
 import os
 import warnings
 
-from torch import Tensor
-from torch import nn
 import torch.nn.functional as F
 
-XFORMERS_AVAILABLE = False
+from torch import Tensor, nn, unbind
+
+
+try:
+    from xformers.ops import memory_efficient_attention
+
+    XFORMERS_AVAILABLE = True
+except ImportError:
+    XFORMERS_AVAILABLE = False
 
 
 class Attention(nn.Module):

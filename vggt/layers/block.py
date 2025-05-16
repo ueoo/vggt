@@ -9,19 +9,31 @@
 
 import logging
 import os
-from typing import Callable, List, Any, Tuple, Dict
 import warnings
 
-import torch
-from torch import nn, Tensor
+from typing import Any, Callable, Dict, List, Tuple
 
-from .attention import Attention
+import torch
+
+from torch import Tensor, nn
+
+from .attention import Attention, MemEffAttention
 from .drop_path import DropPath
 from .layer_scale import LayerScale
 from .mlp import Mlp
 
 
-XFORMERS_AVAILABLE = False
+try:
+    from xformers.ops import (
+        fmha,
+        index_select_cat,
+        memory_efficient_attention,
+        scaled_index_add,
+    )
+
+    XFORMERS_AVAILABLE = True
+except ImportError:
+    XFORMERS_AVAILABLE = False
 
 
 class Block(nn.Module):
