@@ -20,6 +20,7 @@ from itertools import repeat
 from .utils import bilinear_sampler
 
 from .modules import Mlp, AttnBlock, CrossAttnBlock, ResidualBlock
+from torch.nn.init import trunc_normal_
 
 
 class BasicEncoder(nn.Module):

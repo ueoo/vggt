@@ -4,8 +4,9 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
 import numpy as np
+import torch
+
 from .vggsfm_utils import *
 
 
@@ -20,6 +21,7 @@ def predict_tracks(
     max_points_num=163840,
     fine_tracking=True,
     complete_non_vis=True,
+    force_query_frame_ids=None,
 ):
     """
     Predict tracks for the given images and masks.
@@ -62,6 +64,9 @@ def predict_tracks(
     if 0 in query_frame_indexes:
         query_frame_indexes.remove(0)
     query_frame_indexes = [0, *query_frame_indexes]
+
+    if force_query_frame_ids is not None:
+        query_frame_indexes = force_query_frame_ids
 
     # TODO: add the functionality to handle the masks
     keypoint_extractors = initialize_feature_extractors(

@@ -5,15 +5,20 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple, Union, List, Dict, Any
+
+from torch.utils.checkpoint import checkpoint
 
 from vggt.layers import PatchEmbed
 from vggt.layers.block import Block
-from vggt.layers.rope import RotaryPositionEmbedding2D, PositionGetter
-from vggt.layers.vision_transformer import vit_small, vit_base, vit_large, vit_giant2
+from vggt.layers.rope import PositionGetter, RotaryPositionEmbedding2D
+from vggt.layers.vision_transformer import vit_base, vit_giant2, vit_large, vit_small
+
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +142,7 @@ class Aggregator(nn.Module):
         for name, value in (("_resnet_mean", _RESNET_MEAN), ("_resnet_std", _RESNET_STD)):
             self.register_buffer(name, torch.FloatTensor(value).view(1, 1, 3, 1, 1), persistent=False)
 
-        self.use_reentrant = False # hardcoded to False
+        self.use_reentrant = False  # hardcoded to False
 
     def __build_patch_embed__(
         self,

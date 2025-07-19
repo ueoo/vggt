@@ -11,9 +11,11 @@ import logging
 import os
 import warnings
 
-from torch import Tensor
-from torch import nn
 import torch.nn.functional as F
+
+from torch import Tensor, nn, unbind
+from xformers.ops import memory_efficient_attention
+
 
 XFORMERS_AVAILABLE = False
 

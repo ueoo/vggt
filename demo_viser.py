@@ -4,19 +4,21 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-import os
-import glob
-import time
-import threading
 import argparse
+import glob
+import os
+import threading
+import time
+
 from typing import List, Optional
 
+import cv2
 import numpy as np
 import torch
-from tqdm.auto import tqdm
 import viser
 import viser.transforms as viser_tf
-import cv2
+
+from tqdm.auto import tqdm
 
 
 try:
@@ -24,11 +26,14 @@ try:
 except ImportError:
     print("onnxruntime not found. Sky segmentation may not work.")
 
-from visual_util import segment_sky, download_file_from_url
 from vggt.models.vggt import VGGT
+from vggt.utils.geometry import (
+    closed_form_inverse_se3,
+    unproject_depth_map_to_point_map,
+)
 from vggt.utils.load_fn import load_and_preprocess_images
-from vggt.utils.geometry import closed_form_inverse_se3, unproject_depth_map_to_point_map
 from vggt.utils.pose_enc import pose_encoding_to_extri_intri
+from visual_util import download_file_from_url, segment_sky
 
 
 def viser_wrapper(
@@ -307,7 +312,7 @@ def apply_sky_segmentation(conf: np.ndarray, image_folder: str) -> np.ndarray:
 
 parser = argparse.ArgumentParser(description="VGGT demo with viser for 3D visualization")
 parser.add_argument(
-    "--image_folder", type=str, default="examples/kitchen/images/", help="Path to folder containing images"
+    "--images_folder", type=str, default="examples/kitchen/images/", help="Path to folder containing images"
 )
 parser.add_argument("--use_point_map", action="store_true", help="Use point map instead of depth-based points")
 parser.add_argument("--background_mode", action="store_true", help="Run the viser server in background mode")
@@ -352,8 +357,8 @@ def main():
     model = model.to(device)
 
     # Use the provided image folder path
-    print(f"Loading images from {args.image_folder}...")
-    image_names = glob.glob(os.path.join(args.image_folder, "*"))
+    print(f"Loading images from {args.images_folder}...")
+    image_names = glob.glob(os.path.join(args.images_folder, "*"))
     print(f"Found {len(image_names)} images")
 
     images = load_and_preprocess_images(image_names).to(device)
@@ -363,7 +368,7 @@ def main():
     dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
 
     with torch.no_grad():
-        with torch.cuda.amp.autocast(dtype=dtype):
+        with torch.amp.autocast("cuda", dtype=dtype):
             predictions = model(images)
 
     print("Converting pose encoding to extrinsic and intrinsic matrices...")
@@ -393,7 +398,7 @@ def main():
         use_point_map=args.use_point_map,
         background_mode=args.background_mode,
         mask_sky=args.mask_sky,
-        image_folder=args.image_folder,
+        image_folder=args.images_folder,
     )
     print("Visualization complete")
 

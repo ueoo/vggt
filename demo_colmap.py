@@ -4,13 +4,15 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-import random
-import numpy as np
+import copy
 import glob
 import os
-import copy
+import random
+
+import numpy as np
 import torch
 import torch.nn.functional as F
+
 
 # Configure CUDA settings
 torch.backends.cudnn.enabled = True
@@ -18,18 +20,22 @@ torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.deterministic = False
 
 import argparse
+
 from pathlib import Path
-import trimesh
+
 import pycolmap
+import trimesh
 
-
+from vggt.dependency.np_to_pycolmap import (
+    batch_np_matrix_to_pycolmap,
+    batch_np_matrix_to_pycolmap_wo_track,
+)
+from vggt.dependency.track_predict import predict_tracks
 from vggt.models.vggt import VGGT
-from vggt.utils.load_fn import load_and_preprocess_images_square
-from vggt.utils.pose_enc import pose_encoding_to_extri_intri
 from vggt.utils.geometry import unproject_depth_map_to_point_map
 from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
-from vggt.dependency.track_predict import predict_tracks
-from vggt.dependency.np_to_pycolmap import batch_np_matrix_to_pycolmap, batch_np_matrix_to_pycolmap_wo_track
+from vggt.utils.load_fn import load_and_preprocess_images_square
+from vggt.utils.pose_enc import pose_encoding_to_extri_intri
 
 
 # TODO: add support for masks
@@ -41,7 +47,8 @@ from vggt.dependency.np_to_pycolmap import batch_np_matrix_to_pycolmap, batch_np
 
 def parse_args():
     parser = argparse.ArgumentParser(description="VGGT Demo")
-    parser.add_argument("--scene_dir", type=str, required=True, help="Directory containing the scene images")
+    parser.add_argument("--images_dir", type=str, required=True, help="Directory containing the scene images")
+    parser.add_argument("--output_dir", type=str, required=True, help="Directory containing the scene images")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--use_ba", action="store_true", default=False, help="Use BA for reconstruction")
     ######### BA parameters #########
@@ -72,7 +79,7 @@ def run_VGGT(model, images, dtype, resolution=518):
     images = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
 
     with torch.no_grad():
-        with torch.cuda.amp.autocast(dtype=dtype):
+        with torch.amp.autocast("cuda", dtype=dtype):
             images = images[None]  # add batch dimension
             aggregated_tokens_list, ps_idx = model.aggregator(images)
 
@@ -118,8 +125,18 @@ def demo_fn(args):
     print(f"Model loaded")
 
     # Get image paths and preprocess them
-    image_dir = os.path.join(args.scene_dir, "images")
-    image_path_list = glob.glob(os.path.join(image_dir, "*"))
+    image_dir = args.images_dir
+    image_path_list = os.listdir(image_dir)
+    image_path_list = [
+        path for path in image_path_list if path.endswith(".png") or path.endswith(".jpg") or path.endswith(".jpeg")
+    ]
+    image_path_list = sorted(image_path_list)
+    static_frame_ids = []
+    static_frame_ids.append(image_path_list.index("cam1_cal000001.jpg"))
+    static_frame_ids.append(image_path_list.index("cam2_cal000001.jpg"))
+
+    image_path_list = [os.path.join(image_dir, path) for path in image_path_list]
+
     if len(image_path_list) == 0:
         raise ValueError(f"No images found in {image_dir}")
     base_image_path_list = [os.path.basename(path) for path in image_path_list]
@@ -144,7 +161,7 @@ def demo_fn(args):
         scale = img_load_resolution / vggt_fixed_resolution
         shared_camera = args.shared_camera
 
-        with torch.cuda.amp.autocast(dtype=dtype):
+        with torch.amp.autocast("cuda", dtype=dtype):
             # Predicting Tracks
             # Using VGGSfM tracker instead of VGGT tracker for efficiency
             # VGGT tracker requires multiple backbone runs to query different frames (this is a problem caused by the training process)
@@ -161,6 +178,7 @@ def demo_fn(args):
                 query_frame_num=args.query_frame_num,
                 keypoint_extractor="aliked+sp",
                 fine_tracking=args.fine_tracking,
+                # force_query_frame_ids=static_frame_ids,
             )
 
             torch.cuda.empty_cache()
@@ -240,19 +258,24 @@ def demo_fn(args):
         shared_camera=shared_camera,
     )
 
-    print(f"Saving reconstruction to {args.scene_dir}/sparse")
-    sparse_reconstruction_dir = os.path.join(args.scene_dir, "sparse")
+    print(f"Saving reconstruction to {args.output_dir}/sparse")
+    sparse_reconstruction_dir = os.path.join(args.output_dir, "sparse")
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)
     reconstruction.write(sparse_reconstruction_dir)
 
     # Save point cloud for fast visualization
-    trimesh.PointCloud(points_3d, colors=points_rgb).export(os.path.join(args.scene_dir, "sparse/points.ply"))
+    trimesh.PointCloud(points_3d, colors=points_rgb).export(os.path.join(args.output_dir, "sparse/points.ply"))
 
     return True
 
 
 def rename_colmap_recons_and_rescale_camera(
-    reconstruction, image_paths, original_coords, img_size, shift_point2d_to_original_res=False, shared_camera=False
+    reconstruction,
+    image_paths,
+    original_coords,
+    img_size,
+    shift_point2d_to_original_res=False,
+    shared_camera=False,
 ):
     rescale_camera = True
 
@@ -319,7 +342,7 @@ Output:
     │   ├── cameras.bin   # Camera parameters (COLMAP format)
     │   ├── images.bin    # Pose for each image (COLMAP format)
     │   ├── points3D.bin  # 3D points (COLMAP format)
-    │   └── points.ply    # Point cloud visualization file 
+    │   └── points.ply    # Point cloud visualization file
     └── visuals/          # Visualization outputs TODO
 
 Key Features
