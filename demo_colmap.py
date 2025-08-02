@@ -131,9 +131,9 @@ def demo_fn(args):
         path for path in image_path_list if path.endswith(".png") or path.endswith(".jpg") or path.endswith(".jpeg")
     ]
     image_path_list = sorted(image_path_list)
-    static_frame_ids = []
-    static_frame_ids.append(image_path_list.index("cam1_cal000001.jpg"))
-    static_frame_ids.append(image_path_list.index("cam2_cal000001.jpg"))
+    # static_frame_ids = []
+    # static_frame_ids.append(image_path_list.index("cam1_cal000001.jpg"))
+    # static_frame_ids.append(image_path_list.index("cam2_cal000001.jpg"))
 
     image_path_list = [os.path.join(image_dir, path) for path in image_path_list]
 

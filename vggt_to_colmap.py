@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 import requests
 import torch
+import trimesh
 
 from PIL import Image
 from scipy.spatial.transform import Rotation
@@ -597,12 +598,42 @@ def main():
             os.path.join(args.output_dir, "images.bin"), quaternions, translations, image_points2D, image_names
         )
         write_colmap_points3D_bin(os.path.join(args.output_dir, "points3D.bin"), points3D)
+
+        # Save point cloud for fast visualization
+        print("Saving point cloud as PLY file...")
+        if len(points3D) > 0:
+            # Extract coordinates and colors from points3D
+            points_xyz = np.array([point["xyz"] for point in points3D])
+            points_rgb = np.array([point["rgb"] for point in points3D])
+
+            # Create and export point cloud
+            point_cloud = trimesh.PointCloud(points_xyz, colors=points_rgb)
+            ply_path = os.path.join(args.output_dir, "points.ply")
+            point_cloud.export(ply_path)
+            print(f"Point cloud saved to {ply_path}")
+        else:
+            print("No points to save in PLY format")
     else:
         write_colmap_cameras_txt(os.path.join(args.output_dir, "cameras.txt"), predictions["intrinsic"], width, height)
         write_colmap_images_txt(
             os.path.join(args.output_dir, "images.txt"), quaternions, translations, image_points2D, image_names
         )
         write_colmap_points3D_txt(os.path.join(args.output_dir, "points3D.txt"), points3D)
+
+    # Save point cloud for fast visualization
+    print("Saving point cloud as PLY file...")
+    if len(points3D) > 0:
+        # Extract coordinates and colors from points3D
+        points_xyz = np.array([point["xyz"] for point in points3D])
+        points_rgb = np.array([point["rgb"] for point in points3D])
+
+        # Create and export point cloud
+        point_cloud = trimesh.PointCloud(points_xyz, colors=points_rgb)
+        ply_path = os.path.join(args.output_dir, "points.ply")
+        point_cloud.export(ply_path)
+        print(f"Point cloud saved to {ply_path}")
+    else:
+        print("No points to save in PLY format")
 
     print(f"COLMAP files successfully written to {args.output_dir}")
 
