@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from torch.utils.checkpoint import checkpoint
+from typing import Optional, Tuple, Union, List, Dict, Any
 
 from vggt.layers import PatchEmbed
 from vggt.layers.block import Block
